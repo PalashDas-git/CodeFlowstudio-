@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeFlow - Modern Code Editor</title>
+    
+    <!-- CDN Links -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ext-language_tools.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Light Theme */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --accent-primary: #14b8a6;
+            --accent-secondary: #0d9488;
+            --border-color: #e2e8f0;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --tab-bg: #e0f2f1;
+            --tab-active: #14b8a6;
+            --sidebar-bg: #ffffff;
+            --editor-bg: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-primary: #2dd4bf;
+            --accent-secondary: #14b8a6;
+            --border-color: #334155;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --tab-bg: #1e3a3a;
+            --tab-active: #14b8a6;
+            --sidebar-bg: #1e293b;
+            --editor-bg: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            height: 50px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: 0 1px 3px var(--shadow);
+        }
+
+        .app-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 6px;
+        }
+
+        .active-file-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            padding: 6px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .nav-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+            transform: translateY(-1px);
+        }
+
+        /* Layout Container */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 50px - 28px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .sidebar-btn {
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--accent-primary);
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .file-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .file-item.active {
+            background: var(--tab-bg);
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .file-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-item-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-item-actions {
+            opacity: 1;
+        }
+
+        .file-action-btn {
+            width: 20px;
+            height: 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .file-action-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--accent-primary);
+        }
+
+        /* Editor Container */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+
+        /* Pill-shaped Tabs */
+        .tabs-container {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
+            align-items: center;
+        }
+
+        .tabs-container::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .tabs-container::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        .tab {
+            padding: 6px 16px;
+            background: var(--tab-bg);
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .tab:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            background: var(--tab-active);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        .tab-close {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            background: transparent;
+            border: none;
+            color: currentColor;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Editor */
+        #editor {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Console Panel */
+        .console-panel {
+            height: 200px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: height 0.3s;
+        }
+
+        .console-panel.collapsed {
+            height: 32px;
+        }
+
+        .console-header {
+            height: 32px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+        }
+
+        .console-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .console-content {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .console-line {
+            padding: 4px 0;
+            color: var(--text-primary);
+        }
+
+        .console-line.error {
+            color: #ef4444;
+        }
+
+        .console-line.success {
+            color: #10b981;
+        }
+
+        /* Bottom Status Bar */
+        .status-bar {
+            height: 28px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-left, .status-right {
+            display: flex;
+            gap: 16px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px var(--shadow);
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .settings-group {
+            margin-bottom: 20px;
+        }
+
+        .settings-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .settings-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .settings-select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-container input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-1px);
+        }
+
+        .modal-btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .modal-btn.secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--accent-primary);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(20px);
+        }
+
+        /* File Input Hidden */
+        #fileInput {
+            display: none;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            gap: 12px;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            opacity: 0.3;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <!-- Top Navigation -->
+    <div class="top-nav">
+        <div class="app-name">
+            <div class="app-icon"></div>
+            CodeFlow
+        </div>
+        <div class="active-file-name" id="activeFileName">No file open</div>
+        <div class="nav-buttons">
+            <button class="nav-btn" onclick="createNewFile()">+ New</button>
+            <button class="nav-btn" onclick="openFileDialog()">📁 Open</button>
+            <button class="nav-btn" onclick="saveCurrentFile()">💾 Save</button>
+            <button class="nav-btn" onclick="runCode()">▶ Run</button>
+            <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
+            <button class="nav-btn" onclick="openSettings()">⚙️ Settings</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Files</div>
+                <div class="sidebar-actions">
+                    <button class="sidebar-btn" onclick="createNewFile()" title="New File">+</button>
+                    <button class="sidebar-btn" onclick="toggleSidebar()" title="Collapse">◀</button>
+                </div>
+            </div>
+            <div class="file-list" id="fileList">
+                <!-- Files will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Editor Container -->
+        <div class="editor-container">
+            <!-- Tabs -->
+            <div class="tabs-container" id="tabsContainer">
+                <button class="sidebar-btn" onclick="toggleSidebar()" title="Toggle Sidebar" id="toggleSidebarBtn" style="display: none;">▶</button>
+            </div>
+
+            <!-- Editor -->
+            <div id="editor"></div>
+
+            <!-- Console Panel -->
+            <div class="console-panel" id="consolePanel">
+                <div class="console-header" onclick="toggleConsole()">
+                    <div class="console-title">Console Output</div>
+                    <div style="font-size: 10px;">▼</div>
+                </div>
+                <div class="console-content" id="consoleContent">
+                    <div class="console-line" style="color: var(--text-secondary);">Console ready. Click "Run" to execute JavaScript code.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <div class="status-item">
+                <span>Ln <span id="cursorLine">1</span>, Col <span id="cursorCol">1</span></span>
+            </div>
+            <div class="status-item">
+                <span id="fileLanguage">Plain Text</span>
+            </div>
+        </div>
+        <div class="status-right">
+            <div class="status-item">
+                <span id="autosaveStatus">Autosave: OFF</span>
+            </div>
+            <div class="status-item">
+                <span id="fileCount">0 files</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">Editor Settings</div>
+            
+            <div class="settings-group">
+                <label class="settings-label">Font Size</label>
+                <input type="number" class="settings-input" id="fontSizeInput" value="14" min="10" max="24">
+            </div>
+
+            <div class="settings-group">
+                <label class="settings-label">Editor Theme</label>
+                <select class="settings-select" id="editorThemeSelect">
+                    <option value="chrome">Chrome</option>
+                    <option value="monokai">Monokai</option>
+                    <option value="github">GitHub</option>
+                    <option value="tomorrow_night">Tomorrow Night</option>
+                    <option value="dracula">Dracula</option>
+                    <option value="twilight">Twilight</option>
+                </select>
+            </div>
+
+            <div class="settings-group">
+                <label class="settings-label">Tab Size</label>
+                <input type="number" class="settings-input" id="tabSizeInput" value="2" min="2" max="8">
+            </div>
+
+            <div class="settings-group">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="autosaveCheckbox">
+                    <label class="settings-label" style="margin: 0;">Enable Autosave</label>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="wordWrapCheckbox">
+                    <label class="settings-label" style="margin: 0;">Word Wrap</label>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="closeSettings()">Cancel</button>
+                <button class="modal-btn" onclick="saveSettings()">Apply Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" multiple accept=".html,.css,.js,.json,.txt,.md,.jsx,.tsx,.ts,.xml,.svg">
+
+    <script>
+        // ============================================
+        // WORKSPACE & STATE MANAGEMENT
+        // ============================================
+        
+        let workspace = {
+            files: [],
+            activeFileId: null,
+            nextId: 1
+        };
+
+        let editor = null;
+        let settings = {
+            fontSize: 14,
+            editorTheme: 'chrome',
+            tabSize: 2,
+            autosave: false,
+            wordWrap: false
+        };
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        function init() {
+            loadFromLocalStorage();
+            initEditor();
+            renderFileList();
+            renderTabs();
+            updateStatusBar();
+            setupKeyboardShortcuts();
+            applySettings();
+            
+            // Create welcome file if workspace is empty
+            if (workspace.files.length === 0) {
+                createWelcomeFile();
+            } else {
+                if (workspace.activeFileId) {
+                    switchToFile(workspace.activeFileId);
+                }
+            }
+        }
+
+        function initEditor() {
+            editor = ace.edit("editor");
+            editor.setTheme("ace/theme/chrome");
+            editor.session.setMode("ace/mode/javascript");
+            editor.setOptions({
+                enableBasicAutocompletion: true,
+                enableLiveAutocompletion: true,
+                fontSize: settings.fontSize,
+                tabSize: settings.tabSize,
+                wrap: settings.wordWrap
+            });
+
+            // Update cursor position
+            editor.session.selection.on('changeCursor', function() {
+                const cursor = editor.getCursorPosition();
+                document.getElementById('cursorLine').textContent = cursor.row + 1;
+                document.getElementById('cursorCol').textContent = cursor.column + 1;
+            });
+
+            // Auto-save on change
+            editor.session.on('change', function() {
+                if (workspace.activeFileId && settings.autosave) {
+                    const activeFile = workspace.files.find(f => f.id === workspace.activeFileId);
+                    if (activeFile) {
+                        activeFile.content = editor.getValue();
+                        activeFile.modified = true;
+                        saveToLocalStorage();
+                    }
+                }
+            });
+        }
+
+        function createWelcomeFile() {
+            const welcomeContent = `// Welcome to CodeFlow! 🚀
+// A modern, professional code editor built for the web.
+
+console.log("Hello, CodeFlow!");
+
+// Features:
+// - Syntax highlighting for multiple languages
+// - File management with tabs
+// - Run JavaScript code instantly
+// - Theme customization
+// - Keyboard shortcuts (Ctrl+S to save, Ctrl+F to search)
+
+function greet(name) {
+    return \`Welcome, \${name}! Start coding...\`;
+}
+
+console.log(greet("Developer"));
+`;
+            const file = {
+                id: workspace.nextId++,
+                name: 'welcome.js',
+                content: welcomeContent,
+                language: 'javascript',
+                modified: false
+            };
+            workspace.files.push(file);
+            workspace.activeFileId = file.id;
+            saveToLocalStorage();
+            renderFileList();
+            renderTabs();
+            switchToFile(file.id);
+        }
+
+        // ============================================
+        // FILE OPERATIONS
+        // ============================================
+        
+        function createNewFile() {
+            const fileName = prompt('Enter file name:', 'untitled.js');
+            if (!fileName) return;
+
+            const file = {
+                id: workspace.nextId++,
+                name: fileName,
+                content: '',
+                language: getLanguageFromExtension(fileName),
+                modified: false
+            };
+
+            workspace.files.push(file);
+            workspace.activeFileId = file.id;
+            saveToLocalStorage();
+            renderFileList();
+            renderTabs();
+            switchToFile(file.id);
+        }
+
+        function deleteFile(fileId, event) {
+            event.stopPropagation();
+            const file = workspace.files.find(f => f.id === fileId);
+            if (!file) return;
+
+            if (!confirm(`Delete ${file.name}?`)) return;
+
+            workspace.files = workspace.files.filter(f => f.id !== fileId);
+            
+            if (workspace.activeFileId === fileId) {
+                if (workspace.files.length > 0) {
+                    workspace.activeFileId = workspace.files[0].id;
+                    switchToFile(workspace.activeFileId);
+                } else {
+                    workspace.activeFileId = null;
+                    editor.setValue('');
+                    document.getElementById('activeFileName').textContent = 'No file open';
+                }
+            }
+
+            saveToLocalStorage();
+            renderFileList();
+            renderTabs();
+            updateStatusBar();
+        }
+
+        function renameFile(fileId, event) {
+            event.stopPropagation();
+            const file = workspace.files.find(f => f.id === fileId);
+            if (!file) return;
+
+            const newName = prompt('Enter new name:', file.name);
+            if (!newName || newName === file.name) return;
+
+            file.name = newName;
+            file.language = getLanguageFromExtension(newName);
+            
+            if (workspace.activeFileId === fileId) {
+                editor.session.setMode(`ace/mode/${file.language}`);
+                document.getElementById('activeFileName').textContent = file.name;
+                document.getElementById('fileLanguage').textContent = capitalizeFirst(file.language);
+            }
+
+            saveToLocalStorage();
+            renderFileList();
+            renderTabs();
+        }
+
+        function switchToFile(fileId) {
+            const file = workspace.files.find(f => f.id === fileId);
+            if (!file) return;
+
+            workspace.activeFileId = fileId;
+            editor.setValue(file.content, -1);
+            editor.session.setMode(`ace/mode/${file.language}`);
+            document.getElementById('activeFileName').textContent = file.name;
+            document.getElementById('fileLanguage').textContent = capitalizeFirst(file.language);
+            
+            renderFileList();
+            renderTabs();
+            saveToLocalStorage();
+        }
+
+        function closeTab(fileId, event) {
+            event.stopPropagation();
+            deleteFile(fileId, event);
+        }
+
+        function saveCurrentFile() {
+            if (!workspace.activeFileId) {
+                alert('No file open to save!');
+                return;
+            }
+
+            const file = workspace.files.find(f => f.id === workspace.activeFileId);
+            if (!file) return;
+
+            file.content = editor.getValue();
+            file.modified = false;
+
+            // Download file
+            const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+            saveAs(blob, file.name);
+
+            saveToLocalStorage();
+            renderTabs();
+            
+            addConsoleMessage('✓ File saved: ' + file.name, 'success');
+        }
+
+        function openFileDialog() {
+            document.getElementById('fileInput').click();
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (!files.length) return;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+
+                reader.onload = function(event) {
+                    const fileObj = {
+                        id: workspace.nextId++,
+                        name: file.name,
+                        content: event.target.result,
+                        language: getLanguageFromExtension(file.name),
+                        modified: false
+                    };
+
+                    workspace.files.push(fileObj);
+                    workspace.activeFileId = fileObj.id;
+                    
+                    saveToLocalStorage();
+                    renderFileList();
+                    renderTabs();
+                    switchToFile(fileObj.id);
+                    
+                    addConsoleMessage('✓ Opened: ' + file.name, 'success');
+                };
+
+                reader.readAsText(file);
+            }
+
+            e.target.value = '';
+        });
+
+        // ============================================
+        // RENDERING
+        // ============================================
+        
+        function renderFileList() {
+            const fileList = document.getElementById('fileList');
+            
+            if (workspace.files.length === 0) {
+                fileList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">No files yet</div></div>';
+                return;
+            }
+
+            fileList.innerHTML = workspace.files.map(file => `
+                <div class="file-item ${file.id === workspace.activeFileId ? 'active' : ''}" onclick="switchToFile(${file.id})">
+                    <div class="file-item-name">${escapeHtml(file.name)}</div>
+                    <div class="file-item-actions">
+                        <button class="file-action-btn" onclick="renameFile(${file.id}, event)" title="Rename">✏️</button>
+                        <button class="file-action-btn" onclick="deleteFile(${file.id}, event)" title="Delete">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('tabsContainer');
+            const toggleBtn = document.getElementById('toggleSidebarBtn');
+            
+            if (workspace.files.length === 0) {
+                tabsContainer.innerHTML = '';
+                tabsContainer.appendChild(toggleBtn);
+                return;
+            }
+
+            tabsContainer.innerHTML = workspace.files.map(file => `
+                <div class="tab ${file.id === workspace.activeFileId ? 'active' : ''}" onclick="switchToFile(${file.id})">
+                    <span>${escapeHtml(file.name)}</span>
+                    <button class="tab-close" onclick="closeTab(${file.id}, event)">×</button>
+                </div>
+            `).join('');
+
+            tabsContainer.appendChild(toggleBtn);
+        }
+
+        function updateStatusBar() {
+            document.getElementById('fileCount').textContent = `${workspace.files.length} files`;
+            document.getElementById('autosaveStatus').textContent = `Autosave: ${settings.autosave ? 'ON' : 'OFF'}`;
+        }
+
+        // ============================================
+        // CONSOLE / RUN CODE
+        // ============================================
+        
+        function runCode() {
+            if (!workspace.activeFileId) {
+                alert('No file open to run!');
+                return;
+            }
+
+            const file = workspace.files.find(f => f.id === workspace.activeFileId);
+            if (!file) return;
+
+            clearConsole();
+            addConsoleMessage(`▶ Running ${file.name}...`, 'success');
+
+            try {
+                // Create sandbox iframe for execution
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+
+                // Override console.log in iframe
+                const iframeWindow = iframe.contentWindow;
+                iframeWindow.console.log = function(...args) {
+                    addConsoleMessage(args.map(arg => 
+                        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+                    ).join(' '));
+                };
+                iframeWindow.console.error = function(...args) {
+                    addConsoleMessage(args.join(' '), 'error');
+                };
+
+                // Run code
+                iframeWindow.eval(editor.getValue());
+                
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                }, 100);
+
+            } catch (error) {
+                addConsoleMessage(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function addConsoleMessage(message, type = '') {
+            const consoleContent = document.getElementById('consoleContent');
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            line.textContent = message;
+            consoleContent.appendChild(line);
+            consoleContent.scrollTop = consoleContent.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleContent').innerHTML = '';
+        }
+
+        function toggleConsole() {
+            const panel = document.getElementById('consolePanel');
+            panel.classList.toggle('collapsed');
+        }
+
+        // ============================================
+        // SETTINGS
+        // ============================================
+        
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+            document.getElementById('fontSizeInput').value = settings.fontSize;
+            document.getElementById('editorThemeSelect').value = settings.editorTheme;
+            document.getElementById('tabSizeInput').value = settings.tabSize;
+            document.getElementById('autosaveCheckbox').checked = settings.autosave;
+            document.getElementById('wordWrapCheckbox').checked = settings.wordWrap;
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function saveSettings() {
+            settings.fontSize = parseInt(document.getElementById('fontSizeInput').value);
+            settings.editorTheme = document.getElementById('editorThemeSelect').value;
+            settings.tabSize = parseInt(document.getElementById('tabSizeInput').value);
+            settings.autosave = document.getElementById('autosaveCheckbox').checked;
+            settings.wordWrap = document.getElementById('wordWrapCheckbox').checked;
+
+            applySettings();
+            saveToLocalStorage();
+            closeSettings();
+            
+            addConsoleMessage('✓ Settings saved', 'success');
+        }
+
+        function applySettings() {
+            editor.setFontSize(settings.fontSize);
+            editor.setTheme(`ace/theme/${settings.editorTheme}`);
+            editor.setOptions({
+                tabSize: settings.tabSize,
+                wrap: settings.wordWrap
+            });
+            updateStatusBar();
+        }
+
+        // ============================================
+        // THEME TOGGLE
+        // ============================================
+        
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // Update editor theme to match
+            if (newTheme === 'dark') {
+                editor.setTheme('ace/theme/tomorrow_night');
+            } else {
+                editor.setTheme(`ace/theme/${settings.editorTheme}`);
+            }
+        }
+
+        // Load saved theme on init
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.body.setAttribute('data-theme', savedTheme);
+
+        // ============================================
+        // SIDEBAR TOGGLE
+        // ============================================
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('toggleSidebarBtn');
+            sidebar.classList.toggle('collapsed');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                toggleBtn.style.display = 'flex';
+            } else {
+                toggleBtn.style.display = 'none';
+            }
+        }
+
+        // ============================================
+        // KEYBOARD SHORTCUTS
+        // ============================================
+        
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', function(e) {
+                const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+                // Ctrl/Cmd + S - Save
+                if (modKey && e.key === 's') {
+                    e.preventDefault();
+                    saveCurrentFile();
+                }
+
+                // Ctrl/Cmd + O - Open
+                if (modKey && e.key === 'o') {
+                    e.preventDefault();
+                    openFileDialog();
+                }
+
+                // Ctrl/Cmd + N - New File
+                if (modKey && e.key === 'n') {
+                    e.preventDefault();
+                    createNewFile();
+                }
+
+                // Ctrl/Cmd + ` - Toggle Console
+                if (modKey && e.key === '`') {
+                    e.preventDefault();
+                    toggleConsole();
+                }
+
+                // Ctrl/Cmd + F - Search (handled by Ace Editor)
+            });
+        }
+
+        // ============================================
+        // LOCAL STORAGE
+        // ============================================
+        
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('codeflow_workspace', JSON.stringify(workspace));
+                localStorage.setItem('codeflow_settings', JSON.stringify(settings));
+            } catch (e) {
+                console.error('Failed to save to localStorage:', e);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedWorkspace = localStorage.getItem('codeflow_workspace');
+                const savedSettings = localStorage.getItem('codeflow_settings');
+
+                if (savedWorkspace) {
+                    workspace = JSON.parse(savedWorkspace);
+                }
+
+                if (savedSettings) {
+                    settings = JSON.parse(savedSettings);
+                }
+            } catch (e) {
+                console.error('Failed to load from localStorage:', e);
+            }
+        }
+
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        
+        function getLanguageFromExtension(fileName) {
+            const ext = fileName.split('.').pop().toLowerCase();
+            const languageMap = {
+                'js': 'javascript',
+                'jsx': 'javascript',
+                'ts': 'typescript',
+                'tsx': 'typescript',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'md': 'markdown',
+                'py': 'python',
+                'java': 'java',
+                'cpp': 'c_cpp',
+                'c': 'c_cpp',
+                'php': 'php',
+                'rb': 'ruby',
+                'go': 'golang',
+                'rs': 'rust',
+                'sql': 'sql',
+                'xml': 'xml',
+                'yaml': 'yaml',
+                'yml': 'yaml'
+            };
+            return languageMap[ext] || 'text';
+        }
+
+        function capitalizeFirst(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
+        // INITIALIZE ON LOAD
+        // ============================================
+        
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
